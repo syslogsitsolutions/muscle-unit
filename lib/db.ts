@@ -1,4 +1,4 @@
-import mongoose, { Connection } from 'mongoose';
+import mongoose, { Connection } from "mongoose";
 
 let cachedConnection: Connection | null = null;
 
@@ -7,10 +7,13 @@ export async function connectToDatabase() {
     return { connection: cachedConnection };
   }
 
-  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/gym-management';
+  const MONGODB_URI =
+    process.env.MONGODB_URI ||
+    "mongodb+srv://syslogsitsolutions:xYwF7WbgKmRAzhjc@cluster0.yky1f6e.mongodb.net/muscle-unit";
+  console.log("MONGODB_URI", MONGODB_URI);
 
   if (!MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI environment variable');
+    throw new Error("Please define the MONGODB_URI environment variable");
   }
 
   try {
@@ -19,7 +22,7 @@ export async function connectToDatabase() {
 
     return { connection: cachedConnection };
   } catch (error) {
-    console.error('Error connecting to MongoDB:', error);
-    throw new Error('Unable to connect to database');
+    console.error("Error connecting to MongoDB:", error);
+    throw new Error("Unable to connect to database");
   }
 }
