@@ -71,10 +71,7 @@ export async function PUT(
         { status: 400 }
       );
     }
-    if (
-      existingMember.membershipId.membershipType.toString() !==
-      membershipType._id.toString()
-    ) {
+    if (body.membershipType !== membershipType._id.toString()) {
       const price =
         parseInt(membershipType.offerPrice) > 0
           ? parseInt(membershipType.offerPrice) +

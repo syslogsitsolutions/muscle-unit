@@ -163,7 +163,7 @@ export default function NewMemberPage() {
     if (!selectedMembershipId || membershipTypes.length === 0) return;
 
     const selectedMembership = membershipTypes.find(
-      (type) => type._id === selectedMembershipId
+      (type: any) => type._id === selectedMembershipId
     );
 
     if (!selectedMembership) return;
@@ -496,7 +496,7 @@ export default function NewMemberPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {membershipTypes.map((type) => (
+                          {membershipTypes.map((type: any) => (
                             <SelectItem key={type._id} value={type._id}>
                               <div className="flex gap-2 items-center text-sm">
                                 <span className="font-medium">{type.name}</span>

@@ -91,7 +91,10 @@ export default function EditMembershipPage() {
     }
     setIsLoading(true);
     try {
-      await editMembership.mutateAsync({ id: membershipId, data: values });
+      await editMembership.mutateAsync({
+        id: String(membershipId),
+        data: values,
+      });
       toast.success("Membership plan updated successfully!");
       router.push("/dashboard/memberships");
     } catch (error) {

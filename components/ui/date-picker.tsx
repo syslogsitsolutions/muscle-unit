@@ -118,7 +118,7 @@ export function DateRangePicker({
           mode="range"
           defaultMonth={dateRange?.from}
           selected={dateRange}
-          onSelect={onDateRangeChange}
+          // onSelect={onDateRangeChange}
           numberOfMonths={2}
           className="rounded-md"
           captionLayout="dropdown"
