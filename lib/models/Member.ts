@@ -68,6 +68,7 @@ const MemberSchema = new Schema<IMember>(
 
 MemberSchema.statics.getNextMemberId = async function (): Promise<string> {
   const lastMember = await this.findOne().sort({ createdAt: -1 }).lean();
+  console.log("lastMember", lastMember);
 
   const lastId = lastMember?.memberId ? parseInt(lastMember.memberId) : 999;
   return (lastId + 1).toString();
@@ -79,5 +80,5 @@ interface MemberModel extends mongoose.Model<IMember> {
   getNextMemberId(): Promise<string>;
 }
 
-export default (mongoose.models.Member as MemberModel) ||
-  mongoose.model<IMember, MemberModel>("Member", MemberSchema);
+const Member = mongoose.model<IMember, MemberModel>("Member", MemberSchema);
+export default Member;
