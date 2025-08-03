@@ -133,6 +133,7 @@ export default function NewMemberPage() {
       await createMember.mutateAsync(values);
       toast.success("Member added successfully!");
       router.push("/dashboard/members");
+      form.reset();
     } catch (error) {
       toast.error(`Failed to add member`);
       console.error("Failed to add member:", error);
@@ -146,6 +147,8 @@ export default function NewMemberPage() {
       try {
         const res = await fetch("/api/members/next-id");
         const data = await res.json();
+        console.log(data);
+
         if (res.ok) {
           form.setValue("memberId", data.memberId);
         } else {
