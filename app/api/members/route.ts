@@ -92,9 +92,13 @@ export async function POST(request: Request) {
       notes,
     });
 
+    // Get Member ID
+    const memberId = await Member.getNextMemberId();
+
     // Create Member document
     const newMember = await Member.create({
       ...memberData,
+      memberId,
       membershipId: newMembership._id,
     });
 

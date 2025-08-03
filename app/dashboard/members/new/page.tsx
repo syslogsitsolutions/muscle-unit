@@ -38,6 +38,7 @@ import { toast } from "sonner"; // For notifications
 import { useEffect, useState } from "react";
 import { useGetAllMembership } from "@/hooks/use-membership-type";
 import { useCreateMember } from "@/hooks/use-member";
+import axios from "axios";
 
 const paymentStatusOptions = [
   { value: "pending", label: "Pending" },
@@ -145,14 +146,12 @@ export default function NewMemberPage() {
   useEffect(() => {
     const fetchNextMemberId = async () => {
       try {
-        const res = await fetch("/api/members/next-id");
-        const data = await res.json();
-        console.log(data);
-
-        if (res.ok) {
-          form.setValue("memberId", data.memberId);
+        // const res = await fetch("/api/members/next-id");
+        const res = await axios.post("/api/members/next-id");
+        if (res.status === 200) {
+          form.setValue("memberId", res.data.memberId);
         } else {
-          toast.error(data.error || "Failed to fetch member ID");
+          toast.error(res.data.error || "Failed to fetch member ID");
         }
       } catch (err) {
         toast.error("Error generating member ID");

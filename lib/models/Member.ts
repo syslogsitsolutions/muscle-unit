@@ -66,79 +66,19 @@ const MemberSchema = new Schema<IMember>(
   { timestamps: true }
 );
 
-// Static method definition - more robust approach for serverless
 MemberSchema.statics.getNextMemberId = async function (): Promise<string> {
-  try {
-    const lastMember = await this.findOne()
-      .sort({ createdAt: -1 })
-      .select('memberId')
-      .lean()
-      .exec();
-    
-    const lastId = lastMember?.memberId ? parseInt(lastMember.memberId, 10) : 999;
-    
-    // Ensure we have a valid number
-    if (isNaN(lastId)) {
-      console.warn('Invalid memberId found, starting from 1000');
-      return "1000";
-    }
-    
-    return (lastId + 1).toString();
-  } catch (error) {
-    console.error('Error in getNextMemberId:', error);
-    throw new Error('Failed to generate next member ID');
-  }
+  const lastMember = await this.findOne().sort({ createdAt: -1 }).lean();
+  const lastId = lastMember?.memberId ? parseInt(lastMember.memberId) : 999;
+  return (lastId + 1).toString();
 };
 
 // Add full-text search index
 MemberSchema.index({ name: "text", phone: "text" });
 
-// Pre-save hook to generate memberId if not provided
-MemberSchema.pre('save', async function(next) {
-  if (!this.memberId) {
-    try {
-      // Use the constructor to access static methods
-      const MemberModel = this.constructor as MemberModel;
-      this.memberId = await MemberModel.getNextMemberId();
-    } catch (error) {
-      console.error('Error generating memberId in pre-save hook:', error);
-      return next(error instanceof Error ? error : new Error('Unknown error generating memberId'));
-    }
-  }
-  next();
-});
-
-// Interface for the model with statics
 interface MemberModel extends mongoose.Model<IMember> {
   getNextMemberId(): Promise<string>;
 }
 
-// Simplified model creation for serverless environments
-const Member: MemberModel = (mongoose.models.Member as MemberModel) || mongoose.model<IMember, MemberModel>("Member", MemberSchema);
-
-// Ensure the static method is always available - this is the key fix for serverless
-if (typeof Member.getNextMemberId !== 'function') {
-  Member.getNextMemberId = async function(): Promise<string> {
-    try {
-      const lastMember = await this.findOne()
-        .sort({ createdAt: -1 })
-        .select('memberId')
-        .lean()
-        .exec();
-      
-      const lastId = lastMember?.memberId ? parseInt(lastMember.memberId, 10) : 999;
-      
-      if (isNaN(lastId)) {
-        console.warn('Invalid memberId found, starting from 1000');
-        return "1000";
-      }
-      
-      return (lastId + 1).toString();
-    } catch (error) {
-      console.error('Error in getNextMemberId fallback:', error);
-      throw new Error('Failed to generate next member ID');
-    }
-  };
-}
-
-export default Member;
+// ✅ Important fix for serverless environments
+export default (mongoose.models.Member as MemberModel) ||
+  mongoose.model<IMember, MemberModel>("Member", MemberSchema);
