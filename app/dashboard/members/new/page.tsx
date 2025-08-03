@@ -1,8 +1,7 @@
 "use client";
 
-// Removed useState, will use isLoading from useMutation
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,11 +33,19 @@ import { ImageUpload } from "@/components/ui/image-upload";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { toast } from "sonner"; // For notifications
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
 import { useGetAllMembership } from "@/hooks/use-membership-type";
 import { useCreateMember } from "@/hooks/use-member";
 import axios from "axios";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { addDays, format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
 
 const paymentStatusOptions = [
   { value: "pending", label: "Pending" },
@@ -51,24 +58,21 @@ const paymentMethodOptions = [
   { value: "other", label: "Other" },
 ];
 
+// Updated schema with proper Date handling
 const formSchema = z.object({
   memberId: z.string().min(1, "Member ID is required."),
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
   phone: z.string().min(10, "Phone number must be at least 10 digits."),
-  address: z.string().min(5, "Address must be at least 5 characters."), // Added from model
+  address: z.string().min(5, "Address must be at least 5 characters."),
   dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Please enter a valid date of birth.",
   }),
   gender: z.enum(["male", "female", "other"]),
   emergencyContact: z.object({
-    name: z.string().min(2, "Name must be at least 2 characters."),
-    relationship: z
-      .string()
-      .min(2, "Relationship must be at least 2 characters."),
-    phone: z.string().min(10, "Phone number must be at least 10 digits."),
+    phone: z.string().optional(),
   }),
-  membershipType: z.string().min(1, "Membership type is required."), // Will be ObjectId string
+  membershipType: z.string().min(1, "Membership type is required."),
   healthInfo: z.object({
     medicalConditions: z.string().optional(),
     notes: z.string().optional(),
@@ -76,9 +80,11 @@ const formSchema = z.object({
     height: z.string().optional(),
     bloodType: z.string().optional(),
   }),
+  occupation: z.string().optional(),
   profileImage: z.string().optional(),
-  membershipValidFrom: z.string().optional(),
-  membershipValidTo: z.string().optional(),
+  // Changed to Date objects for better handling
+  membershipValidFrom: z.date().optional(),
+  membershipValidTo: z.date().optional(),
   paymentStatus: z.enum(["pending", "completed"]),
   paymentMethod: z.enum(["cash", "online", "other"]).default("online"),
 });
@@ -95,6 +101,7 @@ export default function NewMemberPage() {
     isLoading: isMembershipLoading,
     isError,
   } = useGetAllMembership();
+
   const form = useForm<NewMemberFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -105,9 +112,8 @@ export default function NewMemberPage() {
       address: "",
       dateOfBirth: "",
       gender: "male",
+      occupation: "",
       emergencyContact: {
-        name: "",
-        relationship: "",
         phone: "",
       },
       healthInfo: {
@@ -117,36 +123,29 @@ export default function NewMemberPage() {
         height: "",
         bloodType: "",
       },
-      membershipType: membershipTypes[0]?._id || "",
+      membershipType: "",
       profileImage: "",
-      membershipValidFrom: "",
-      membershipValidTo: "",
+      membershipValidFrom: undefined,
+      membershipValidTo: undefined,
       paymentStatus: "completed",
       paymentMethod: "online",
     },
   });
+
   const selectedMembershipId = form.watch("membershipType");
+  const selectedMembershipValidFrom = form.watch("membershipValidFrom");
 
-  async function onSubmit(values: NewMemberFormData) {
-    console.log("values", values);
-    setIsLoading(true);
-    try {
-      await createMember.mutateAsync(values);
-      toast.success("Member added successfully!");
-      router.push("/dashboard/members");
-      form.reset();
-    } catch (error) {
-      toast.error(`Failed to add member`);
-      console.error("Failed to add member:", error);
-    } finally {
-      setIsLoading(false);
+  // Set default membership type when data loads
+  useEffect(() => {
+    if (membershipTypes.length > 0 && !form.getValues("membershipType")) {
+      form.setValue("membershipType", membershipTypes[0]._id);
     }
-  }
+  }, [membershipTypes, form]);
 
+  // Generate next member ID
   useEffect(() => {
     const fetchNextMemberId = async () => {
       try {
-        // const res = await fetch("/api/members/next-id");
         const res = await axios.post("/api/members/next-id");
         if (res.status === 200) {
           form.setValue("memberId", res.data.memberId);
@@ -154,6 +153,7 @@ export default function NewMemberPage() {
           toast.error(res.data.error || "Failed to fetch member ID");
         }
       } catch (err) {
+        console.error("Error generating member ID:", err);
         toast.error("Error generating member ID");
       }
     };
@@ -161,6 +161,7 @@ export default function NewMemberPage() {
     fetchNextMemberId();
   }, [form]);
 
+  // Calculate membership dates when membership type changes
   useEffect(() => {
     if (!selectedMembershipId || membershipTypes.length === 0) return;
 
@@ -171,14 +172,58 @@ export default function NewMemberPage() {
     if (!selectedMembership) return;
 
     const today = new Date();
-    const validFrom = today.toISOString().split("T")[0]; // format: YYYY-MM-DD
-    const validToDate = new Date(today);
-    validToDate.setDate(today.getDate() + selectedMembership.duration);
-    const validTo = validToDate.toISOString().split("T")[0];
+    const validToDate = addDays(today, selectedMembership.duration);
 
-    form.setValue("membershipValidFrom", validFrom);
-    form.setValue("membershipValidTo", validTo);
+    // Set both dates when membership type changes
+    form.setValue("membershipValidFrom", today);
+    form.setValue("membershipValidTo", validToDate);
   }, [selectedMembershipId, membershipTypes, form]);
+
+  // Recalculate end date when start date changes
+  useEffect(() => {
+    if (!selectedMembershipValidFrom || !selectedMembershipId) return;
+
+    const selectedMembership = membershipTypes.find(
+      (type: any) => type._id === selectedMembershipId
+    );
+
+    if (!selectedMembership) return;
+
+    const validToDate = addDays(
+      selectedMembershipValidFrom,
+      selectedMembership.duration
+    );
+    form.setValue("membershipValidTo", validToDate);
+  }, [
+    selectedMembershipValidFrom,
+    selectedMembershipId,
+    membershipTypes,
+    form,
+  ]);
+
+  async function onSubmit(values: NewMemberFormData) {
+    setIsLoading(true);
+    try {
+      // Convert dates to ISO strings for API submission
+      const submitData = {
+        ...values,
+        membershipValidFrom: values.membershipValidFrom?.toISOString(),
+        membershipValidTo: values.membershipValidTo?.toISOString(),
+      };
+
+      await createMember.mutateAsync(submitData);
+      toast.success("Member added successfully!");
+      router.push("/dashboard/members");
+      form.reset();
+    } catch (error) {
+      toast.error("Failed to add member");
+      console.error("Failed to add member:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const isFormLoading = isLoading || createMember.isPending;
 
   return (
     <div className="space-y-6">
@@ -195,7 +240,8 @@ export default function NewMemberPage() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Member Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Member Information</CardTitle>
@@ -213,7 +259,7 @@ export default function NewMemberPage() {
                     <FormControl>
                       <ImageUpload
                         value={field.value || ""}
-                        disabled={isLoading}
+                        disabled={isFormLoading}
                         onChange={field.onChange}
                         onRemove={() => field.onChange("")}
                       />
@@ -223,7 +269,6 @@ export default function NewMemberPage() {
                 )}
               />
 
-              {/* Name */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
@@ -245,13 +290,16 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Smith" {...field} />
+                        <Input
+                          placeholder="John Smith"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {/* Gender */}
                 <FormField
                   control={form.control}
                   name="gender"
@@ -261,6 +309,7 @@ export default function NewMemberPage() {
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
+                        disabled={isFormLoading}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -278,8 +327,8 @@ export default function NewMemberPage() {
                   )}
                 />
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Date of Birth */}
                 <FormField
                   control={form.control}
                   name="dateOfBirth"
@@ -287,13 +336,16 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Date of Birth</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input
+                          type="date"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {/* Phone */}
                 <FormField
                   control={form.control}
                   name="phone"
@@ -302,9 +354,10 @@ export default function NewMemberPage() {
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="+91 0000000000"
+                          placeholder="0000000000"
                           {...field}
                           maxLength={10}
+                          disabled={isFormLoading}
                         />
                       </FormControl>
                       <FormMessage />
@@ -322,6 +375,7 @@ export default function NewMemberPage() {
                           type="email"
                           placeholder="john.smith@example.com"
                           {...field}
+                          disabled={isFormLoading}
                         />
                       </FormControl>
                       <FormMessage />
@@ -330,52 +384,24 @@ export default function NewMemberPage() {
                 />
               </div>
 
-              {/* Address */}
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="123 Main St, Anytown, USA"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
-                  name="emergencyContact.name"
+                  name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Name</FormLabel>
+                      <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="Jane Doe" {...field} />
+                        <Input
+                          placeholder="123 Main St, Anytown, USA"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {/* Emergency Contact Relationship */}
-                <FormField
-                  control={form.control}
-                  name="emergencyContact.relationship"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Emergency Contact Relationship</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Spouse" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {/* Emergency Contact Phone */}
                 <FormField
                   control={form.control}
                   name="emergencyContact.phone"
@@ -383,7 +409,29 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Emergency Contact Phone</FormLabel>
                       <FormControl>
-                        <Input placeholder="+91 0000000000" {...field} />
+                        <Input
+                          placeholder="0000000000"
+                          {...field}
+                          maxLength={10}
+                          disabled={isFormLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="occupation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Occupation</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Engineer"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -392,7 +440,8 @@ export default function NewMemberPage() {
               </div>
             </CardContent>
           </Card>
-          <br />
+
+          {/* Health Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Health Information</CardTitle>
@@ -401,7 +450,6 @@ export default function NewMemberPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Weights */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
@@ -410,7 +458,11 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Weight (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="60 kg" {...field} />
+                        <Input
+                          placeholder="60 kg"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -423,7 +475,11 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Height (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="170 cm" {...field} />
+                        <Input
+                          placeholder="170 cm"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -436,7 +492,11 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Blood Group (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="A+" {...field} />
+                        <Input
+                          placeholder="A+"
+                          {...field}
+                          disabled={isFormLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -450,7 +510,11 @@ export default function NewMemberPage() {
                   <FormItem>
                     <FormLabel>Medical Conditions (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Asthma, Allergies" {...field} />
+                      <Input
+                        placeholder="e.g., Asthma, Allergies"
+                        {...field}
+                        disabled={isFormLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -463,7 +527,11 @@ export default function NewMemberPage() {
                   <FormItem>
                     <FormLabel>Notes (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Any additional notes" {...field} />
+                      <Input
+                        placeholder="Any additional notes"
+                        {...field}
+                        disabled={isFormLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -471,7 +539,8 @@ export default function NewMemberPage() {
               />
             </CardContent>
           </Card>
-          <br />
+
+          {/* Payment Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Payment Information</CardTitle>
@@ -480,7 +549,6 @@ export default function NewMemberPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Membership Type */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
@@ -490,7 +558,8 @@ export default function NewMemberPage() {
                       <FormLabel>Membership Type</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={isFormLoading || isMembershipLoading}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -519,21 +588,45 @@ export default function NewMemberPage() {
                     </FormItem>
                   )}
                 />
-                {/* Membership valid from */}
+
                 <FormField
                   control={form.control}
                   name="membershipValidFrom"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Membership Valid From</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} readOnly />
-                      </FormControl>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              disabled={!selectedMembershipId || isFormLoading}
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? format(field.value, "dd/MM/yyyy")
+                                : "Pick a date"}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {/* Membership valid to */}
+
                 <FormField
                   control={form.control}
                   name="membershipValidTo"
@@ -541,13 +634,31 @@ export default function NewMemberPage() {
                     <FormItem>
                       <FormLabel>Membership Valid To</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} readOnly />
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled
+                        >
+                          {field.value
+                            ? format(field.value, "dd/MM/yyyy")
+                            : "Auto-calculated"}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
                       </FormControl>
+                      <FormDescription>
+                        Automatically calculated based on membership type and
+                        start date
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {/* Payment Status */}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
                   name="paymentStatus"
@@ -556,7 +667,8 @@ export default function NewMemberPage() {
                       <FormLabel>Payment Status</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={isFormLoading}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -575,8 +687,8 @@ export default function NewMemberPage() {
                     </FormItem>
                   )}
                 />
-                {/* Payment Method only show if payment status is completed */}
-                {form.getValues().paymentStatus === "completed" && (
+
+                {form.watch("paymentStatus") === "completed" && (
                   <FormField
                     control={form.control}
                     name="paymentMethod"
@@ -585,7 +697,8 @@ export default function NewMemberPage() {
                         <FormLabel>Payment Method</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}
+                          value={field.value}
+                          disabled={isFormLoading}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -610,16 +723,18 @@ export default function NewMemberPage() {
                 )}
               </div>
             </CardContent>
+
             <CardFooter className="flex justify-end space-x-4">
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => router.back()}
-                disabled={createMember.isPending}
+                disabled={isFormLoading}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMember.isPending}>
-                {createMember.isPending ? "Creating..." : "Create Member"}
+              <Button type="submit" disabled={isFormLoading}>
+                {isFormLoading ? "Creating..." : "Create Member"}
               </Button>
             </CardFooter>
           </Card>

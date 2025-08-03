@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +20,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,8 +34,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useGetAllMembership } from "@/hooks/use-membership-type";
+import { cn } from "@/lib/utils";
+import { addDays, format, parseISO } from "date-fns";
+import { Spinner } from "@/components/ui/loading";
 
 const paymentStatusOptions = [
   { value: "pending", label: "Pending" },
@@ -47,6 +57,7 @@ const paymentMethodOptions = [
   { value: "other", label: "Other" },
 ];
 
+// Updated schema with proper Date handling
 const formSchema = z.object({
   memberId: z.string().min(1, "Member ID is required."),
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -58,12 +69,9 @@ const formSchema = z.object({
   }),
   gender: z.enum(["male", "female", "other"]),
   emergencyContact: z.object({
-    name: z.string().min(2, "Name must be at least 2 characters."),
-    relationship: z
-      .string()
-      .min(2, "Relationship must be at least 2 characters."),
-    phone: z.string().min(10, "Phone number must be at least 10 digits."),
+    phone: z.string().optional(),
   }),
+  occupation: z.string().optional(),
   membershipType: z.string().min(1, "Membership type is required."),
   healthInfo: z.object({
     medicalConditions: z.string().optional(),
@@ -73,8 +81,9 @@ const formSchema = z.object({
     bloodType: z.string().optional(),
   }),
   profileImage: z.string().optional(),
-  membershipValidFrom: z.string().optional(),
-  membershipValidTo: z.string().optional(),
+  // Changed to Date objects for better handling
+  membershipValidFrom: z.date().optional(),
+  membershipValidTo: z.date().optional(),
   paymentStatus: z.enum(["pending", "completed"]).optional(),
   paymentMethod: z
     .enum(["cash", "online", "other"])
@@ -84,12 +93,51 @@ const formSchema = z.object({
 
 type EditMemberFormData = z.infer<typeof formSchema>;
 
+interface MemberData {
+  _id: string;
+  memberId: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  dateOfBirth: string;
+  gender: "male" | "female" | "other";
+  occupation?: string;
+  emergencyContact: {
+    phone: string;
+  };
+  healthInfo: {
+    medicalConditions?: string;
+    notes?: string;
+    weight?: string;
+    height?: string;
+    bloodType?: string;
+  };
+  profileImage?: string;
+  paymentStatus: "pending" | "completed";
+  paymentMethod: "cash" | "online" | "other";
+  membershipId: {
+    _id: string;
+    startDate: string;
+    endDate: string;
+    membershipType: {
+      _id: string;
+      name: string;
+      duration: number;
+      actualPrice: number;
+      offerPrice: number;
+    };
+  };
+}
+
 export default function EditMemberPage() {
   const router = useRouter();
   const { id } = useParams();
   const [isLoading, setIsLoading] = useState(false);
   const [fetchingMember, setFetchingMember] = useState(true);
-  const [member, setMember] = useState<any>(null);
+  const [member, setMember] = useState<MemberData | null>(null);
+  const [originalMembershipType, setOriginalMembershipType] =
+    useState<string>("");
 
   const { data: membershipTypes = [], isLoading: isMembershipLoading } =
     useGetAllMembership();
@@ -105,10 +153,9 @@ export default function EditMemberPage() {
       dateOfBirth: "",
       gender: "male",
       emergencyContact: {
-        name: "",
-        relationship: "",
         phone: "",
       },
+      occupation: "",
       healthInfo: {
         medicalConditions: "",
         notes: "",
@@ -118,69 +165,75 @@ export default function EditMemberPage() {
       },
       membershipType: "",
       profileImage: "",
-      membershipValidFrom: "",
-      membershipValidTo: "",
+      membershipValidFrom: undefined,
+      membershipValidTo: undefined,
       paymentStatus: "pending",
       paymentMethod: "online",
     },
   });
 
   const selectedMembershipId = form.watch("membershipType");
-  console.log("selectedMembershipId", selectedMembershipId);
-  console.log(form.getValues());
+  const selectedMembershipValidFrom = form.watch("membershipValidFrom");
+  const paymentStatus = form.watch("paymentStatus");
 
+  // Fetch member data
   useEffect(() => {
     async function fetchMemberData() {
+      if (!id) return;
+
       try {
         setFetchingMember(true);
         const res = await fetch(`/api/members/${id}`);
         const data = await res.json();
-        console.log("data", data);
 
         if (res.ok) {
-          // Format date fields
+          const memberData: MemberData = data;
+
+          // Store original membership type for comparison
+          setOriginalMembershipType(memberData.membershipId.membershipType._id);
+
+          // Format data for form with proper Date objects
           const formattedData = {
-            memberId: data.memberId,
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            address: data.address,
-            gender: data.gender,
+            memberId: memberData.memberId,
+            name: memberData.name,
+            email: memberData.email,
+            phone: memberData.phone,
+            address: memberData.address,
+            gender: memberData.gender,
             emergencyContact: {
-              name: data.emergencyContact.name,
-              relationship: data.emergencyContact.relationship,
-              phone: data.emergencyContact.phone,
+              phone: memberData.emergencyContact.phone || "",
             },
             healthInfo: {
-              medicalConditions: data.healthInfo.medicalConditions,
-              notes: data.healthInfo.notes,
-              weight: data.healthInfo.weight,
-              height: data.healthInfo.height,
-              bloodType: data.healthInfo.bloodType,
+              medicalConditions: memberData.healthInfo.medicalConditions || "",
+              notes: memberData.healthInfo.notes || "",
+              weight: memberData.healthInfo.weight || "",
+              height: memberData.healthInfo.height || "",
+              bloodType: memberData.healthInfo.bloodType || "",
             },
-            paymentStatus: data.paymentStatus,
-            paymentMethod: data.paymentMethod,
-            profileImage: data.profileImage,
-            dateOfBirth: data.dateOfBirth
-              ? new Date(data.dateOfBirth).toISOString().split("T")[0]
+            paymentStatus: memberData.paymentStatus,
+            paymentMethod: memberData.paymentMethod,
+            profileImage: memberData.profileImage || "",
+            dateOfBirth: memberData.dateOfBirth
+              ? new Date(memberData.dateOfBirth).toISOString().split("T")[0]
               : "",
-            membershipValidFrom: data?.membershipId?.startDate
-              ? new Date(data?.membershipId?.startDate)
-                  .toISOString()
-                  .split("T")[0]
-              : "",
-            membershipValidTo: data.membershipId.endDate
-              ? new Date(data.membershipId.endDate).toISOString().split("T")[0]
-              : "",
-            membershipType: data.membershipId.membershipType._id,
+            // Convert to Date objects
+            membershipValidFrom: memberData.membershipId.startDate
+              ? new Date(memberData.membershipId.startDate)
+              : undefined,
+            membershipValidTo: memberData.membershipId.endDate
+              ? new Date(memberData.membershipId.endDate)
+              : undefined,
+            membershipType: memberData.membershipId.membershipType._id,
           };
+
           form.reset(formattedData);
-          setMember(data);
+          setMember(memberData);
         } else {
           toast.error(data.error || "Failed to fetch member data");
           router.push("/dashboard/members");
         }
       } catch (err) {
+        console.error("Error fetching member data:", err);
         toast.error("Error fetching member data");
         router.push("/dashboard/members");
       } finally {
@@ -188,11 +241,38 @@ export default function EditMemberPage() {
       }
     }
 
-    if (id) {
-      fetchMemberData();
-    }
+    fetchMemberData();
   }, [id, form, router]);
 
+  // Calculate membership dates when membership type changes (only if different from original)
+  useEffect(() => {
+    if (!selectedMembershipId || membershipTypes.length === 0 || !member)
+      return;
+
+    // Only recalculate if membership type has changed
+    if (selectedMembershipId === originalMembershipType) return;
+
+    const selectedMembership = membershipTypes.find(
+      (type: any) => type._id === selectedMembershipId
+    );
+
+    if (!selectedMembership) return;
+
+    // When membership type changes, set new dates from today
+    const today = new Date();
+    const validToDate = addDays(today, selectedMembership.duration);
+
+    form.setValue("membershipValidFrom", today);
+    form.setValue("membershipValidTo", validToDate);
+  }, [
+    selectedMembershipId,
+    membershipTypes,
+    member,
+    originalMembershipType,
+    form,
+  ]);
+
+  // Calculate membership dates when membership type changes
   useEffect(() => {
     if (!selectedMembershipId || membershipTypes.length === 0) return;
 
@@ -203,44 +283,83 @@ export default function EditMemberPage() {
     if (!selectedMembership) return;
 
     const today = new Date();
-    const validFrom = today.toISOString().split("T")[0];
-    const validToDate = new Date(today);
-    validToDate.setDate(today.getDate() + selectedMembership.duration);
-    const validTo = validToDate.toISOString().split("T")[0];
+    const validToDate = addDays(today, selectedMembership.duration);
 
-    form.setValue("membershipValidFrom", validFrom);
-    form.setValue("membershipValidTo", validTo);
+    // Set both dates when membership type changes
+    form.setValue("membershipValidFrom", today);
+    form.setValue("membershipValidTo", validToDate);
   }, [selectedMembershipId, membershipTypes, form]);
 
-  async function onSubmit(values: EditMemberFormData) {
-    console.log("values", values);
+  // Recalculate end date when start date changes
+  useEffect(() => {
+    if (!selectedMembershipValidFrom || !selectedMembershipId) return;
 
+    const selectedMembership = membershipTypes.find(
+      (type: any) => type._id === selectedMembershipId
+    );
+
+    if (!selectedMembership) return;
+
+    const validToDate = addDays(
+      selectedMembershipValidFrom,
+      selectedMembership.duration
+    );
+    form.setValue("membershipValidTo", validToDate);
+  }, [
+    selectedMembershipValidFrom,
+    selectedMembershipId,
+    membershipTypes,
+    form,
+  ]);
+
+  async function onSubmit(values: EditMemberFormData) {
     setIsLoading(true);
     try {
+      // Convert dates to ISO strings for API submission
+      const submitData = {
+        ...values,
+        membershipValidFrom: values.membershipValidFrom?.toISOString(),
+        membershipValidTo: values.membershipValidTo?.toISOString(),
+      };
+
       const res = await fetch(`/api/members/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(submitData),
       });
 
       if (res.ok) {
         toast.success("Member updated successfully!");
-        // router.push("/dashboard/members");
+        router.push("/dashboard/members");
       } else {
         const data = await res.json();
         toast.error(data.error || "Failed to update member");
       }
-      console.log("values", values);
     } catch (error) {
-      toast.error("Error updating member");
       console.error("Failed to update member:", error);
+      toast.error("Error updating member");
     } finally {
       setIsLoading(false);
     }
   }
 
+  const isFormLoading = isLoading || fetchingMember || isMembershipLoading;
+  const isMembershipChanged = selectedMembershipId !== originalMembershipType;
+
   if (fetchingMember || isMembershipLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[500px]">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-lg text-destructive">Member not found</div>
+      </div>
+    );
   }
 
   return (
@@ -258,7 +377,8 @@ export default function EditMemberPage() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Member Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Member Information</CardTitle>
@@ -307,7 +427,11 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Smith" {...field} />
+                        <Input
+                          placeholder="John Smith"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -321,7 +445,8 @@ export default function EditMemberPage() {
                       <FormLabel>Gender</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={isLoading}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -339,6 +464,7 @@ export default function EditMemberPage() {
                   )}
                 />
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
@@ -347,7 +473,7 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Date of Birth</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -361,9 +487,10 @@ export default function EditMemberPage() {
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="+91 0000000000"
+                          placeholder="0000000000"
                           {...field}
                           maxLength={10}
+                          disabled={isLoading}
                         />
                       </FormControl>
                       <FormMessage />
@@ -381,6 +508,7 @@ export default function EditMemberPage() {
                           type="email"
                           placeholder="john.smith@example.com"
                           {...field}
+                          disabled={isLoading}
                         />
                       </FormControl>
                       <FormMessage />
@@ -389,44 +517,19 @@ export default function EditMemberPage() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="123 Main St, Anytown, USA"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
-                  name="emergencyContact.name"
+                  name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Name</FormLabel>
+                      <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="Jane Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="emergencyContact.relationship"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Emergency Contact Relationship</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Spouse" {...field} />
+                        <Input
+                          placeholder="123 Main St, Anytown, USA"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -439,7 +542,30 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Emergency Contact Phone</FormLabel>
                       <FormControl>
-                        <Input placeholder="+91 0000000000" {...field} />
+                        <Input
+                          placeholder="0000000000"
+                          {...field}
+                          maxLength={10}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {/* Occupation */}
+                <FormField
+                  control={form.control}
+                  name="occupation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Occupation</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Engineer"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -448,7 +574,8 @@ export default function EditMemberPage() {
               </div>
             </CardContent>
           </Card>
-          <br />
+
+          {/* Health Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Health Information</CardTitle>
@@ -465,7 +592,11 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Weight (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="60 kg" {...field} />
+                        <Input
+                          placeholder="60 kg"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -478,7 +609,11 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Height (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="170 cm" {...field} />
+                        <Input
+                          placeholder="170 cm"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -491,7 +626,11 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Blood Group (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="A+" {...field} />
+                        <Input
+                          placeholder="A+"
+                          {...field}
+                          disabled={isLoading}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -505,7 +644,11 @@ export default function EditMemberPage() {
                   <FormItem>
                     <FormLabel>Medical Conditions (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Asthma, Allergies" {...field} />
+                      <Input
+                        placeholder="e.g., Asthma, Allergies"
+                        {...field}
+                        disabled={isLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -518,7 +661,11 @@ export default function EditMemberPage() {
                   <FormItem>
                     <FormLabel>Notes (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Any additional notes" {...field} />
+                      <Input
+                        placeholder="Any additional notes"
+                        {...field}
+                        disabled={isLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -526,7 +673,8 @@ export default function EditMemberPage() {
               />
             </CardContent>
           </Card>
-          <br />
+
+          {/* Payment Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Payment Information</CardTitle>
@@ -544,7 +692,8 @@ export default function EditMemberPage() {
                       <FormLabel>Membership Type</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={isLoading}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -573,19 +722,92 @@ export default function EditMemberPage() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="membershipValidFrom"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Membership Valid From</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} readOnly />
-                      </FormControl>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              disabled={isLoading}
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? format(field.value, "dd/MM/yyyy")
+                                : "Pick a date"}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {/* {isMembershipChanged ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                disabled={isLoading}
+                                variant="outline"
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value
+                                  ? format(field.value, "dd/MM/yyyy")
+                                  : "Pick a date"}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className="w-full pl-3 text-left font-normal"
+                            disabled
+                          >
+                            {field.value
+                              ? format(field.value, "dd/MM/yyyy")
+                              : "No date selected"}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      )}
+                      {!isMembershipChanged && (
+                        <FormDescription>
+                          Current membership dates are preserved
+                        </FormDescription>
+                      )} */}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="membershipValidTo"
@@ -593,14 +815,34 @@ export default function EditMemberPage() {
                     <FormItem>
                       <FormLabel>Membership Valid To</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} readOnly />
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled
+                        >
+                          {field.value
+                            ? format(field.value, "dd/MM/yyyy")
+                            : "Auto-calculated"}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
                       </FormControl>
+                      <FormDescription>
+                        {isMembershipChanged
+                          ? "Automatically calculated based on membership type and start date"
+                          : "Current membership end date"}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {member.membershipId.membershipType._id !==
-                  selectedMembershipId && (
+              </div>
+
+              {/* Show payment fields only if membership type has changed */}
+              {isMembershipChanged && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
                     name="paymentStatus"
@@ -609,7 +851,8 @@ export default function EditMemberPage() {
                         <FormLabel>Payment Status</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}
+                          value={field.value}
+                          disabled={isLoading}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -631,10 +874,8 @@ export default function EditMemberPage() {
                       </FormItem>
                     )}
                   />
-                )}
-                {form.getValues().paymentStatus === "completed" &&
-                  member.membershipId.membershipType._id !==
-                    selectedMembershipId && (
+
+                  {paymentStatus === "completed" && (
                     <FormField
                       control={form.control}
                       name="paymentMethod"
@@ -643,7 +884,8 @@ export default function EditMemberPage() {
                           <FormLabel>Payment Method</FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
+                            disabled={isLoading}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -666,10 +908,24 @@ export default function EditMemberPage() {
                       )}
                     />
                   )}
-              </div>
+                </div>
+              )}
+
+              {isMembershipChanged && (
+                <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>Note:</strong> You have changed the membership type.
+                    This will create a new membership period starting from the
+                    selected date. Please ensure payment details are updated
+                    accordingly.
+                  </p>
+                </div>
+              )}
             </CardContent>
+
             <CardFooter className="flex justify-end space-x-4">
               <Button
+                type="button"
                 variant="outline"
                 onClick={() => router.back()}
                 disabled={isLoading}

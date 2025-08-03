@@ -45,6 +45,7 @@ import { format, differenceInDays, isAfter } from "date-fns";
 import QuickPaymentModal from "@/components/payment/quick-payment-modal"; // You'll need to create this file
 import { formatDate } from "@/utils/format-date";
 import formatCurrency from "@/utils/format-currency";
+import { CardSkeleton } from "@/components/ui/loading";
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
@@ -88,7 +89,8 @@ export default function FeesPage() {
     status: statusFilter,
   });
 
-  const { data: membershipStats } = useGetMembershipStats();
+  const { data: membershipStats, isLoading: statsLoading } =
+    useGetMembershipStats();
 
   const total = membershipsData?.total || 0;
   const totalPages = Math.ceil(total / limit);
@@ -120,69 +122,75 @@ export default function FeesPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Collected
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(membershipStats?.totalCollected)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              +20.1% from last month
-            </p>
-          </CardContent>
-        </Card>
+        {statsLoading ? (
+          <CardSkeleton />
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Collected
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(membershipStats?.totalCollected)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  +20.1% from last month
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Pending Payments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(membershipStats?.pending?.total)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {membershipStats?.pending?.count} payments pending
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Pending Payments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(membershipStats?.pending?.total)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {membershipStats?.pending?.count} payments pending
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Overdue Payments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(membershipStats?.overdue?.total)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {membershipStats?.overdue?.count} payments overdue
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Overdue Payments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(membershipStats?.overdue?.total)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {membershipStats?.overdue?.count} payments overdue
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              New Admissions (MTD)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(membershipStats?.newAdmissions?.total)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              From {membershipStats?.newAdmissions?.count} new members
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  New Admissions (MTD)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(membershipStats?.newAdmissions?.total)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  From {membershipStats?.newAdmissions?.count} new members
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       <Card>

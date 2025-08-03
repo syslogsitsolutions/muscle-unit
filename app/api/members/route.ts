@@ -4,6 +4,8 @@ import Member from "@/lib/models/Member";
 import Payment from "@/lib/models/Payment";
 import MembershipType from "@/lib/models/MembershipType";
 import Membership from "@/lib/models/Membership";
+import { sendReceiptEmail } from "@/utils/emails/send-receipt";
+import { formatDate } from "@/utils/format-date";
 
 function convertToISO(dateStr: string): string {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -83,8 +85,8 @@ export async function POST(request: Request) {
     // Create Membership document
     const newMembership = await Membership.create({
       membershipType: membershipTypeId,
-      startDate: convertToISO(membershipValidFrom),
-      endDate: convertToISO(membershipValidTo),
+      startDate: membershipValidFrom,
+      endDate: membershipValidTo,
       amountPaid: paymentStatus === "completed" ? price : 0,
       amount: price,
       isAdmissionFeeIncluded: true,
@@ -134,6 +136,16 @@ export async function POST(request: Request) {
         },
         { new: true }
       );
+      await sendReceiptEmail({
+        to: body.email,
+        name: body.name,
+        amount: price,
+        date: formatDate(newPayment.createdAt),
+        receiptId: newPayment.invoiceNumber.toString(),
+        membershipName: membershipType.name,
+        validFrom: formatDate(membershipValidFrom),
+        validTo: formatDate(membershipValidTo),
+      });
       return NextResponse.json(newMember, { status: 201 });
     }
 

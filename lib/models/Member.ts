@@ -7,6 +7,7 @@ export interface IMember {
   address: string;
   dateOfBirth: Date;
   gender: "male" | "female" | "other";
+  occupation: string;
   emergencyContact: {
     name: string;
     relationship: string;
@@ -38,10 +39,11 @@ const MemberSchema = new Schema<IMember>(
     dateOfBirth: { type: Date, required: true },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
     emergencyContact: {
-      name: { type: String, required: true },
-      relationship: { type: String, required: true },
-      phone: { type: String, required: true },
+      name: { type: String },
+      relationship: { type: String },
+      phone: { type: String },
     },
+    occupation: { type: String },
     membershipId: {
       type: Schema.Types.ObjectId,
       ref: "Membership",

@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { RouteLoader } from "@/components/RouteLoader";
 
 export default function DashboardLayout({
   children,

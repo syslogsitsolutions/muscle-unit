@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { ClerkProvider } from "@clerk/nextjs";
 import QueryProvider from "@/components/query-provider"; // Import the new provider
+import { RouteLoader } from "@/components/RouteLoader";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,6 +33,7 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               {children}
+              {/* <RouteLoader /> */}
               <Toaster />
             </ThemeProvider>
           </QueryProvider>

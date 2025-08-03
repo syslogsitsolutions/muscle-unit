@@ -46,6 +46,8 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "sonner";
 import { useMembers } from "@/hooks/use-member";
+import { formatDate } from "@/utils/format-date";
+import { TableSkeleton } from "@/components/ui/loading";
 
 export default function MembersPage() {
   const router = useRouter();
@@ -61,12 +63,12 @@ export default function MembersPage() {
     limit,
     search: searchQuery,
   });
+  console.log("membersData", membersLoading);
 
   const total = membersData?.total || 0;
   const totalPages = Math.ceil(total / limit);
 
   const members = membersData?.members || [];
-  console.log("members", members);
 
   const handleDelete = async () => {
     if (!selectedMember) return;
@@ -81,11 +83,6 @@ export default function MembersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
   };
 
   const getStatusColor = (status: string) => {
@@ -199,7 +196,7 @@ export default function MembersPage() {
                       {formatDate(member.joiningDate)}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {formatDate(member.membershipId.startDate)}
+                      {formatDate(member.membershipId.endDate)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
