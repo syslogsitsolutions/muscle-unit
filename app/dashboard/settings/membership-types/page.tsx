@@ -199,7 +199,7 @@ export default function MembershipsPage() {
                             <DropdownMenuItem
                               onClick={() =>
                                 router.push(
-                                  `/dashboard/memberships/${plan._id}/edit`
+                                  `/dashboard/settings/membership-types/${plan._id}/edit`
                                 )
                               }
                             >
