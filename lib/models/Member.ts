@@ -13,6 +13,7 @@ export interface IMember {
     relationship: string;
     phone: string;
   };
+  age: number;
   membershipId: Schema.Types.ObjectId;
   joiningDate: Date;
   healthInfo: {
@@ -36,7 +37,8 @@ const MemberSchema = new Schema<IMember>(
     email: { type: String },
     phone: { type: String, required: true, unique: true },
     address: { type: String, required: true },
-    dateOfBirth: { type: Date, required: true },
+    dateOfBirth: { type: Date },
+    age: { type: Number },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
     emergencyContact: {
       name: { type: String },

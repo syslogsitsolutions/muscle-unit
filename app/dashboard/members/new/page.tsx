@@ -65,9 +65,7 @@ const formSchema = z.object({
   email: z.string().optional(),
   phone: z.string().min(10, "Phone number must be at least 10 digits."),
   address: z.string().min(5, "Address must be at least 5 characters."),
-  dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: "Please enter a valid date of birth.",
-  }),
+  dateOfBirth: z.string().optional(),
   gender: z.enum(["male", "female", "other"]),
   emergencyContact: z.object({
     phone: z.string().optional(),
