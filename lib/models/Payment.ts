@@ -20,7 +20,7 @@ export interface IPayment {
     {
       amount: number;
       label: string;
-    }
+    },
   ];
   notes?: string;
   createdBy: Schema.Types.ObjectId;
@@ -54,6 +54,7 @@ const PaymentSchema = new Schema<IPayment>(
     ],
     transactionType: { type: String, enum: ["debit", "credit"] },
     membershipId: { type: Schema.Types.ObjectId, ref: "Membership" },
+    member: { type: Schema.Types.ObjectId, ref: "Member" },
     invoiceNumber: { type: String, required: true, unique: true },
     notes: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },

@@ -74,6 +74,14 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    // Check phone number
+    const existingMember = await Member.findOne({ phone: memberData.phone });
+    if (existingMember) {
+      return NextResponse.json(
+        { error: "Member with this phone number already exists" },
+        { status: 400 }
+      );
+    }
 
     const price =
       parseInt(membershipType.offerPrice) > 0
@@ -126,6 +134,7 @@ export async function POST(request: Request) {
             label: "Admission Fee",
           },
         ],
+        membershipId: newMembership._id,
       });
       // Update Membership document with references
       await Membership.findByIdAndUpdate(
@@ -166,3 +175,24 @@ export async function POST(request: Request) {
     );
   }
 }
+
+// Find All exsisting memberships and update payment collection with membershipId
+// export async function PUT(request: Request) {
+//   try {
+//     await connectToDatabase();
+//     const memberships = await Membership.find();
+
+//     for (const membership of memberships) {
+//       await Payment.updateMany(
+//         { _id: membership.paymentId },
+//         { membershipId: membership._id, member: membership.member }
+//       );
+//     }
+//     return NextResponse.json({ message: "Memberships updated successfully" });
+//   } catch (error) {
+//     return NextResponse.json(
+//       { error: "Failed to update member" },
+//       { status: 500 }
+//     );
+//   }
+// }

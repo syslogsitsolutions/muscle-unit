@@ -4,6 +4,9 @@ import Payment from "@/lib/models/Payment";
 import Membership from "@/lib/models/Membership";
 import MembershipType from "@/lib/models/MembershipType";
 import mongoose, { Types } from "mongoose";
+import { sendReceiptEmail } from "@/utils/emails/send-receipt";
+import { formatDate } from "@/utils/format-date";
+import Member from "@/lib/models/Member";
 
 function convertToISO(dateStr: string): string {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -39,6 +42,11 @@ export async function POST(
       );
     }
 
+    const member = await Member.findById(membership.member);
+    if (!member) {
+      return NextResponse.json({ error: "Member not found" }, { status: 404 });
+    }
+
     // Generate invoice number
     const date = new Date();
     const year = date.getFullYear();
@@ -66,20 +74,25 @@ export async function POST(
     });
 
     if (membership.status === "expired") {
-      const currentMembershipStartDate = new Date(membership.startDate);
       const currentMembershipEndDate = new Date(membership.endDate);
-
       const membershipTypeDuration = membershipType.duration;
+
+      // Calculate new start and end dates
+      const newStartDate = currentMembershipEndDate;
+      const newEndDate = new Date(
+        newStartDate.getTime() + membershipTypeDuration * 24 * 60 * 60 * 1000
+      );
 
       const membershipData = {
         member: membership.member,
         membershipType: membership.membershipType,
-        startDate: currentMembershipEndDate,
-        endDate: new Date(
-          currentMembershipStartDate.getTime() +
-            membershipTypeDuration * 24 * 60 * 60 * 1000
-        ),
-        amount: membershipType.amount,
+        startDate: newStartDate,
+        endDate: newEndDate, // Now correctly calculated from newStartDate
+        amount:
+          membershipType.offerPrice > 0 ||
+          membershipType.offerPrice < membership.actualPrice
+            ? membershipType.offerPrice
+            : membershipType.actualPrice,
         amountPaid: body.amount + membership.amountPaid,
         isAdmissionFeeIncluded: membershipType?.isAdmissionFeeIncluded,
         status: membership.amount > body.amount ? "pending" : "active",
@@ -93,6 +106,19 @@ export async function POST(
         membershipData,
         { new: true }
       );
+
+      if (member.email) {
+        await sendReceiptEmail({
+          to: member.email,
+          name: member.name,
+          amount: body.amount,
+          date: formatDate(new Date().toISOString()),
+          receiptId: payment.invoiceNumber.toString(),
+          membershipName: membershipType.name,
+          validFrom: formatDate(membership.startDate),
+          validTo: formatDate(membership.endDate),
+        });
+      }
     } else if (membership.status === "pending") {
       const membershipData = {
         member: membership.member,
@@ -114,6 +140,25 @@ export async function POST(
         { ...membership, ...membershipData },
         { new: true }
       );
+
+      await Payment.updateOne(
+        { _id: payment._id },
+        { membershipId: membership._id, member: membership.member },
+        { new: true }
+      );
+
+      if (member.email) {
+        await sendReceiptEmail({
+          to: member.email,
+          name: member.name,
+          amount: body.amount,
+          date: formatDate(new Date().toISOString()),
+          receiptId: payment.invoiceNumber.toString(),
+          membershipName: membershipType.name,
+          validFrom: formatDate(membership.startDate),
+          validTo: formatDate(membership.endDate),
+        });
+      }
     } else {
       return NextResponse.json(
         { error: "Membership updating if failed" },
