@@ -4,7 +4,7 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CreditCard, DollarSign } from "lucide-react";
+import { CreditCard, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,11 @@ import { toast } from "sonner";
 import formatCurrency from "@/utils/format-currency";
 import { useCreateMembershipPayment } from "@/hooks/use-membership";
 import { PAYMENT_METHODS } from "@/constants/payment";
+import {
+  printMembershipReceipt,
+  type MembershipData,
+  type PaymentData,
+} from "@/utils/print/print-payment-receipt";
 
 const paymentSchema = z.object({
   amount: z
@@ -49,21 +54,7 @@ const paymentSchema = z.object({
 interface QuickPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  membership: {
-    _id: string;
-    memberDetails: {
-      memberId: string;
-      name: string;
-      phone: string;
-    };
-    membershipTypeDetails: {
-      name: string;
-    };
-    amount: number;
-    amountPaid: number;
-    startDate: string;
-    endDate: string;
-  };
+  membership: MembershipData;
   onPaymentSuccess?: () => void;
 }
 
@@ -73,9 +64,8 @@ export default function QuickPaymentModal({
   membership,
   onPaymentSuccess,
 }: QuickPaymentModalProps) {
-  console.log("membershipmodal", membership);
-
   const [isLoading, setIsLoading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const createMembershipPayment = useCreateMembershipPayment();
 
   const remainingBalance = membership.amount - membership.amountPaid;
@@ -89,10 +79,15 @@ export default function QuickPaymentModal({
     },
   });
 
-  async function onSubmit(values: z.infer<typeof paymentSchema>) {
+  async function onSubmit(
+    values: z.infer<typeof paymentSchema>,
+    shouldPrint: boolean = false
+  ) {
     setIsLoading(true);
+    if (shouldPrint) setIsPrinting(true);
+
     try {
-      const paymentData = {
+      const paymentData: PaymentData = {
         amount: parseFloat(values.amount),
         method: values.method,
         notes: values.notes,
@@ -105,6 +100,29 @@ export default function QuickPaymentModal({
       });
 
       toast.success("Payment recorded successfully!");
+
+      // Print receipt if requested
+      if (shouldPrint) {
+        try {
+          const printResult = await printMembershipReceipt(
+            paymentData,
+            membership
+          );
+
+          if (printResult.success) {
+            const method =
+              printResult.method === "thermal"
+                ? "thermal printer"
+                : "browser print";
+            toast.success(`Receipt printed successfully via ${method}!`);
+          } else {
+            toast.error(`Printing failed: ${printResult.error}`);
+          }
+        } catch (printError: any) {
+          toast.error(`Printing failed: ${printError.message}`);
+        }
+      }
+
       form.reset();
       onClose();
       onPaymentSuccess?.();
@@ -113,6 +131,7 @@ export default function QuickPaymentModal({
       console.error("Payment error:", error);
     } finally {
       setIsLoading(false);
+      setIsPrinting(false);
     }
   }
 
@@ -165,7 +184,13 @@ export default function QuickPaymentModal({
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              form.handleSubmit((values) => onSubmit(values, false))();
+            }}
+            className="space-y-4"
+          >
             <FormField
               control={form.control}
               name="amount"
@@ -234,17 +259,36 @@ export default function QuickPaymentModal({
               )}
             />
 
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleClose}
-                disabled={isLoading}
+                disabled={isLoading || isPrinting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
+              <Button
+                type="submit"
+                disabled={isLoading || isPrinting}
+                variant="default"
+              >
                 {isLoading ? "Processing..." : "Record Payment"}
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  const isValid = await form.trigger();
+                  if (isValid) {
+                    const values = form.getValues();
+                    onSubmit(values, true);
+                  }
+                }}
+                disabled={isLoading || isPrinting}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                {isPrinting ? "Printing..." : "Pay & Print"}
               </Button>
             </DialogFooter>
           </form>

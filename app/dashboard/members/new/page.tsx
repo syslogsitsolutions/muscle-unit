@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,11 @@ import {
 import { cn } from "@/lib/utils";
 import { addDays, format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  MembershipData,
+  PaymentData,
+  printMembershipReceipt,
+} from "@/utils/print/print-payment-receipt";
 
 const paymentStatusOptions = [
   { value: "pending", label: "Pending" },
@@ -93,6 +98,7 @@ export default function NewMemberPage() {
   const router = useRouter();
   const createMember = useCreateMember();
   const [isLoading, setIsLoading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const {
     data: membershipTypes = [],
@@ -199,8 +205,12 @@ export default function NewMemberPage() {
     form,
   ]);
 
-  async function onSubmit(values: NewMemberFormData) {
+  async function onSubmit(
+    values: NewMemberFormData,
+    shouldPrint: boolean = false
+  ) {
     setIsLoading(true);
+    if (shouldPrint) setIsPrinting(true);
     try {
       // Convert dates to ISO strings for API submission
       const submitData = {
@@ -209,8 +219,60 @@ export default function NewMemberPage() {
         membershipValidTo: values.membershipValidTo?.toISOString(),
       };
 
-      await createMember.mutateAsync(submitData);
+      const newMembership = await createMember.mutateAsync(submitData);
+
       toast.success("Member added successfully!");
+      if (shouldPrint && values.paymentStatus === "completed") {
+        const selectedMembership = membershipTypes.find(
+          (type: any) => type._id === values.membershipType
+        );
+
+        const paymentData: PaymentData = {
+          amount:
+            selectedMembership.offerPrice > 0
+              ? selectedMembership.offerPrice
+              : selectedMembership.actualPrice,
+          method: values.paymentMethod,
+          notes: "",
+        };
+
+        const membershipData: MembershipData = {
+          _id: newMembership._id || "",
+          memberDetails: {
+            memberId: values.memberId,
+            name: values.name,
+            phone: values.phone,
+          },
+          membershipTypeDetails: {
+            name: selectedMembership.name,
+          },
+          amount:
+            selectedMembership.offerPrice > 0
+              ? selectedMembership.offerPrice
+              : selectedMembership.actualPrice,
+          amountPaid:
+            selectedMembership.offerPrice > 0
+              ? selectedMembership.offerPrice
+              : selectedMembership.actualPrice,
+          startDate: values.membershipValidFrom?.toISOString() || "",
+          endDate: values.membershipValidTo?.toISOString() || "",
+        };
+
+        const printResult = await printMembershipReceipt(
+          paymentData,
+          membershipData
+        );
+
+        if (printResult.success) {
+          const method =
+            printResult.method === "thermal"
+              ? "thermal printer"
+              : "browser print";
+          toast.success(`Receipt printed successfully via ${method}!`);
+        } else {
+          toast.error(`Printing failed: ${printResult.error}`);
+        }
+      }
       router.push("/dashboard/members");
       form.reset();
     } catch (error) {
@@ -238,7 +300,13 @@ export default function NewMemberPage() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            form.handleSubmit((values) => onSubmit(values, false))();
+          }}
+          className="space-y-6"
+        >
           {/* Member Information Card */}
           <Card>
             <CardHeader>
@@ -733,6 +801,28 @@ export default function NewMemberPage() {
               </Button>
               <Button type="submit" disabled={isFormLoading}>
                 {isFormLoading ? "Creating..." : "Create Member"}
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  const isValid = await form.trigger();
+                  if (!isValid) return;
+                  const values = form.getValues();
+                  if (values.paymentStatus !== "completed") {
+                    toast.info(
+                      "Payment status is pending, no receipt to print."
+                    );
+                    return;
+                  }
+                  onSubmit(values, true);
+                }}
+                disabled={
+                  isFormLoading || form.watch("paymentStatus") !== "completed"
+                }
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                {isPrinting ? "Printing..." : "Create & Print"}
               </Button>
             </CardFooter>
           </Card>

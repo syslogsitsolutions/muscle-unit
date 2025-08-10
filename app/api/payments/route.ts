@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Payment from "@/lib/models/Payment";
+import "@/lib/models/Member";
+import "@/lib/models/Membership";
+import "@/lib/models/MembershipType";
 
 export async function GET(req: Request) {
   try {
@@ -22,6 +25,11 @@ export async function GET(req: Request) {
 
     const total = await Payment.countDocuments(query);
     const payments = await Payment.find(query)
+      .populate("member")
+      .populate({
+        path: "membershipId",
+        populate: { path: "membershipType" },
+      })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);

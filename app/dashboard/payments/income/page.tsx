@@ -11,8 +11,10 @@ import {
   PlusCircle,
   Search,
   XCircle,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +45,11 @@ import {
 import { useGetPayments } from "@/hooks/use-payment";
 import { useRouter } from "next/navigation";
 import { PAYMENT_TYPES } from "@/constants/payment";
+import {
+  printMembershipReceipt,
+  type MembershipData,
+  type PaymentData,
+} from "@/utils/print/print-payment-receipt";
 
 interface PopulatedMember {
   _id: string;
@@ -147,6 +154,7 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [printingId, setPrintingId] = useState<string | null>(null);
   const limit = 10;
 
   const { data: paymentsData, isLoading: paymentsLoading } = useGetPayments({
@@ -157,8 +165,58 @@ export default function PaymentsPage() {
 
   const total = paymentsData?.total || 0;
   const totalPages = Math.ceil(total / limit);
-
   const payments = paymentsData?.payments || [];
+
+  const handlePrint = async (payment: any) => {
+    if (payment.paymentType !== PAYMENT_TYPES.MEMBERSHIP) {
+      toast.info("Printing is only available for membership payments.");
+      return;
+    }
+
+    setPrintingId(payment._id);
+    try {
+      const paymentData: PaymentData = {
+        amount: payment.amount,
+        method: payment.paymentMethod,
+        notes: payment.notes || "",
+      };
+
+      const membershipData: MembershipData = {
+        _id: payment.membership?._id || "",
+        memberDetails: {
+          memberId: payment.member?.memberId || "",
+          name: payment.member?.name || "",
+          phone: payment.member?.phone || "",
+        },
+        membershipTypeDetails: {
+          name: payment.membershipId?.membershipType?.name || "",
+        },
+        amount: payment.amount || 0,
+        amountPaid: payment.amount || 0,
+        startDate: payment.membership?.startDate || "",
+        endDate: payment.membership?.endDate || "",
+      };
+
+      const printResult = await printMembershipReceipt(
+        paymentData,
+        membershipData
+      );
+
+      if (printResult.success) {
+        const method =
+          printResult.method === "thermal"
+            ? "thermal printer"
+            : "browser print";
+        toast.success(`Receipt printed successfully via ${method}!`);
+      } else {
+        toast.error(`Printing failed: ${printResult.error}`);
+      }
+    } catch (error: any) {
+      toast.error(`Printing failed: ${error.message}`);
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -203,8 +261,9 @@ export default function PaymentsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="true">Completed</SelectItem>
-                  <SelectItem value="false">Pending</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="partially-paid">Partially Paid</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline">
@@ -220,11 +279,11 @@ export default function PaymentsPage() {
                   <TableHead>Invoice</TableHead>
                   <TableHead>Payment Type</TableHead>
                   <TableHead>Transaction Type</TableHead>
-
                   <TableHead className="hidden md:table-cell">Date</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead className="hidden md:table-cell">Method</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,6 +308,20 @@ export default function PaymentsPage() {
                       {payment.paymentMethod}
                     </TableCell>
                     <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                    <TableCell>
+                      {payment.paymentType === PAYMENT_TYPES.MEMBERSHIP && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handlePrint(payment)}
+                          disabled={
+                            paymentsLoading || printingId === payment._id
+                          }
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -258,13 +331,13 @@ export default function PaymentsPage() {
         <CardFooter className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing <strong>{payments.length}</strong> of{" "}
-            <strong>{payments.length}</strong> payments
+            <strong>{total}</strong> payments
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
-              disabled={page === 1}
+              disabled={page === 1 || paymentsLoading}
               onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -275,7 +348,7 @@ export default function PaymentsPage() {
             <Button
               variant="outline"
               size="icon"
-              disabled={page === totalPages}
+              disabled={page === totalPages || paymentsLoading}
               onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
             >
               <ChevronRight className="h-4 w-4" />
