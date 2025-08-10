@@ -107,6 +107,12 @@ export async function POST(
         { new: true }
       );
 
+      await Payment.findOneAndUpdate(
+        { _id: payment._id },
+        { membershipId: membership._id, member: membership.member },
+        { new: true }
+      );
+
       if (member.email) {
         await sendReceiptEmail({
           to: member.email,
@@ -141,7 +147,7 @@ export async function POST(
         { new: true }
       );
 
-      await Payment.updateOne(
+      await Payment.findOneAndUpdate(
         { _id: payment._id },
         { membershipId: membership._id, member: membership.member },
         { new: true }
