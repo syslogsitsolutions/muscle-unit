@@ -193,8 +193,8 @@ export default function PaymentsPage() {
         },
         amount: payment.amount || 0,
         amountPaid: payment.amount || 0,
-        startDate: payment.membership?.startDate || "",
-        endDate: payment.membership?.endDate || "",
+        startDate: payment.membershipId?.startDate || "",
+        endDate: payment.membershipId?.endDate || "",
       };
 
       const printResult = await printMembershipReceipt(

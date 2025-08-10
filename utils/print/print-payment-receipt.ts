@@ -127,9 +127,9 @@ export const generateMembershipReceipt = (
 
   receipt += SEPARATOR + LINE_FEED;
   receipt += CENTER + BOLD_ON;
-  receipt += `PAID: $${paymentData.amount}` + LINE_FEED;
+  receipt += `PAID: ₹${paymentData.amount}` + LINE_FEED;
   if (remainingBalance > 0) {
-    receipt += `REMAINING: $${remainingBalance.toFixed(2)}` + LINE_FEED;
+    receipt += `REMAINING: ₹${remainingBalance.toFixed(2)}` + LINE_FEED;
   } else {
     receipt += "FULLY PAID" + LINE_FEED;
   }
@@ -211,10 +211,10 @@ export const generateHtmlReceipt = (
           <div>End Date: ${new Date(membership.endDate).toLocaleDateString()}</div>
           <br>
           <div class="separator"></div>
-          <div class="center bold" style="font-size: 14px;">PAID: $${paymentData.amount}</div>
+          <div class="center bold" style="font-size: 14px;">PAID: ₹${paymentData.amount}</div>
           ${
             remainingBalance > 0
-              ? `<div class="center bold">REMAINING: $${remainingBalance.toFixed(2)}</div>`
+              ? `<div class="center bold">REMAINING: ₹${remainingBalance.toFixed(2)}</div>`
               : '<div class="center bold">FULLY PAID</div>'
           }
           <div class="separator"></div>
