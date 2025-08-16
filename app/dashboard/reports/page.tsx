@@ -35,8 +35,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import MembershipReports from "./membership-reports";
 
-// Mock data for charts
+// Mock data for charts (keeping existing data)
 const revenueData = [
   { name: "Jan", revenue: 4000, expenses: 2400 },
   { name: "Feb", revenue: 4500, expenses: 2800 },
@@ -81,7 +82,9 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Reports & Analytics
+          </h2>
           <p className="text-muted-foreground">
             Visualize and analyze your gym's performance data
           </p>
@@ -105,12 +108,13 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="financial">Financial</TabsTrigger>
           <TabsTrigger value="membership">Membership</TabsTrigger>
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="financial">Financial</TabsTrigger>
+          {/* <TabsTrigger value="attendance">Attendance</TabsTrigger> */}
         </TabsList>
+
         <TabsContent value="overview" className="space-y-4 mt-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
             <Card>
@@ -124,13 +128,41 @@ export default function ReportsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={revenueData}>
                     <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                      <linearGradient
+                        id="colorRevenue"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="hsl(var(--chart-1))"
+                          stopOpacity={0.8}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="hsl(var(--chart-1))"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
-                      <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
+                      <linearGradient
+                        id="colorExpenses"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="hsl(var(--chart-3))"
+                          stopOpacity={0.8}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="hsl(var(--chart-3))"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="name" />
@@ -158,13 +190,11 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Membership Distribution</CardTitle>
-                <CardDescription>
-                  Breakdown by membership type
-                </CardDescription>
+                <CardDescription>Breakdown by membership type</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -177,7 +207,9 @@ export default function ReportsPage() {
                       outerRadius={90}
                       paddingAngle={5}
                       dataKey="value"
-                      label={({name, percent}) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      label={({ name, percent }) =>
+                        `${name} (${(percent * 100).toFixed(0)}%)`
+                      }
                     >
                       {membershipTypeData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -189,13 +221,11 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Monthly Attendance</CardTitle>
-                <CardDescription>
-                  Gym attendance trends
-                </CardDescription>
+                <CardDescription>Gym attendance trends</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -214,13 +244,11 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Member Age Distribution</CardTitle>
-                <CardDescription>
-                  Breakdown by age groups
-                </CardDescription>
+                <CardDescription>Breakdown by age groups</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -241,7 +269,7 @@ export default function ReportsPage() {
             </Card>
           </div>
         </TabsContent>
-        
+
         <TabsContent value="financial" className="mt-4">
           <Card>
             <CardHeader>
@@ -257,30 +285,16 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="membership" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Membership Reports</CardTitle>
-              <CardDescription>
-                Detailed view of your membership data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground mb-4">
-                Additional membership reports will be displayed here.
-              </p>
-            </CardContent>
-          </Card>
+          <MembershipReports />
         </TabsContent>
-        
+
         <TabsContent value="attendance" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Attendance Reports</CardTitle>
-              <CardDescription>
-                Detailed view of gym attendance
-              </CardDescription>
+              <CardDescription>Detailed view of gym attendance</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">
