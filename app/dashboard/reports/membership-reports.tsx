@@ -46,8 +46,65 @@ import { useGetAllMembership } from "@/hooks/use-membership-type";
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00ff7f"];
 
+// Types
+interface Summary {
+  totalRevenue: number;
+  totalPayments: number;
+  averagePayment: number;
+  paidPayments: number;
+}
+
+interface RevenueByType {
+  name: string;
+  total: number;
+}
+
+interface RevenueOverTime {
+  month: string;
+  total: number;
+}
+
+interface PaymentMethodBreakdown {
+  method: string;
+  total: number;
+}
+
+interface MemberAcquisition {
+  month: string;
+  newMembers: number;
+  revenue: number;
+}
+
+interface TopMember {
+  name: string;
+  email: string;
+  totalSpent: number;
+  paymentsCount: number;
+}
+
+interface Retention {
+  retentionRate: number;
+  renewingMembers: number;
+  totalMembers: number;
+}
+
+interface ReportData {
+  summary: Summary;
+  revenueByType: RevenueByType[];
+  revenueOverTime: RevenueOverTime[];
+  paymentMethodBreakdown: PaymentMethodBreakdown[];
+  memberAcquisition: MemberAcquisition[];
+  topMembers: TopMember[];
+  retention: Retention;
+}
+
+interface MembershipType {
+  _id: string;
+  name: string;
+}
+
 export default function MembershipReports() {
-  const [reportData, setReportData] = useState(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     timeRange: "week",
@@ -62,6 +119,10 @@ export default function MembershipReports() {
     data: membershipTypes = [],
     isLoading: isMembershipLoading,
     isError,
+  }: {
+    data?: MembershipType[];
+    isLoading: boolean;
+    isError: boolean;
   } = useGetAllMembership();
 
   const fetchReports = async () => {
@@ -69,7 +130,7 @@ export default function MembershipReports() {
     try {
       const queryParams = new URLSearchParams(
         Object.entries(filters).filter(
-          ([_, value]) => value !== "" && value !== "all"
+          ([, value]) => value !== "" && value !== "all"
         )
       );
 
@@ -77,7 +138,7 @@ export default function MembershipReports() {
       const data = await response.json();
 
       if (data.success) {
-        setReportData(data.data);
+        setReportData(data.data as ReportData);
       }
     } catch (error) {
       console.error("Error fetching reports:", error);
@@ -90,16 +151,11 @@ export default function MembershipReports() {
     fetchReports();
   }, [filters]);
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
     }));
-  };
-
-  const exportReport = () => {
-    // Implement export functionality
-    console.log("Exporting report...");
   };
 
   if (loading) {
@@ -152,6 +208,7 @@ export default function MembershipReports() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+            {/* Time Range */}
             <div>
               <Label htmlFor="timeRange">Time Range</Label>
               <Select
@@ -175,6 +232,7 @@ export default function MembershipReports() {
               </Select>
             </div>
 
+            {/* Membership Type */}
             <div>
               <Label htmlFor="membershipType">Membership Type</Label>
               <Select
@@ -197,6 +255,7 @@ export default function MembershipReports() {
               </Select>
             </div>
 
+            {/* Membership Status */}
             <div>
               <Label htmlFor="status">Membership Status</Label>
               <Select
@@ -216,6 +275,7 @@ export default function MembershipReports() {
               </Select>
             </div>
 
+            {/* Payment Status */}
             <div>
               <Label htmlFor="paymentStatus">Payment Status</Label>
               <Select
@@ -236,6 +296,7 @@ export default function MembershipReports() {
               </Select>
             </div>
 
+            {/* Date range */}
             {filters.timeRange === "custom" && (
               <>
                 <div>
@@ -261,18 +322,12 @@ export default function MembershipReports() {
               </>
             )}
           </div>
-
-          {/* <div className="flex justify-end mt-4">
-            <Button onClick={exportReport} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export Report
-            </Button>
-          </div> */}
         </CardContent>
       </Card>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Revenue */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -288,6 +343,7 @@ export default function MembershipReports() {
           </CardContent>
         </Card>
 
+        {/* Average Payment */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -297,12 +353,13 @@ export default function MembershipReports() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(summary.averagePayment.toFixed(2))}
+              {formatCurrency(Number(summary.averagePayment.toFixed(2)))}
             </div>
             <p className="text-xs text-muted-foreground">Per transaction</p>
           </CardContent>
         </Card>
 
+        {/* Payment Success Rate */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -326,6 +383,7 @@ export default function MembershipReports() {
           </CardContent>
         </Card>
 
+        {/* Retention */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -343,6 +401,7 @@ export default function MembershipReports() {
       </div>
 
       {/* Charts */}
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Revenue Over Time */}
         <Card>
@@ -364,7 +423,7 @@ export default function MembershipReports() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <Tooltip
                   formatter={(value) => [
-                    `${formatCurrency(value.toFixed(2))}`,
+                    `${formatCurrency(value as number)}`,
                     "Revenue",
                   ]}
                 />
@@ -409,7 +468,10 @@ export default function MembershipReports() {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => [`${formatCurrency(value)}`, "Revenue"]}
+                  formatter={(value) => [
+                    `${formatCurrency(value as number)}`,
+                    "Revenue",
+                  ]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -457,7 +519,10 @@ export default function MembershipReports() {
                 <XAxis dataKey="method" />
                 <YAxis />
                 <Tooltip
-                  formatter={(value) => [`${formatCurrency(value)}`, "Revenue"]}
+                  formatter={(value) => [
+                    `${formatCurrency((value as number) || 0)}`,
+                    "Revenue",
+                  ]}
                 />
                 <Bar dataKey="total" fill="#82ca9d" />
               </BarChart>
@@ -499,8 +564,7 @@ export default function MembershipReports() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Top Members Table */}
+      {/* Top Members */}
       <Card>
         <CardHeader>
           <CardTitle>Top Members by Spending</CardTitle>
@@ -510,7 +574,7 @@ export default function MembershipReports() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {topMembers.slice(0, 10).map((member: any, index: number) => (
+            {topMembers.slice(0, 10).map((member, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between border-b pb-2"
