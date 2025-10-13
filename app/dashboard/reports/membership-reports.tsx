@@ -43,6 +43,7 @@ import {
 } from "recharts";
 import formatCurrency from "@/utils/format-currency";
 import { useGetAllMembership } from "@/hooks/use-membership-type";
+import { NewMembersSection } from "@/components/reports/new-members-section";
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00ff7f"];
 
@@ -603,6 +604,9 @@ export default function MembershipReports() {
           </div>
         </CardContent>
       </Card>
+
+      {/* New Members Section */}
+      <NewMembersSection filters={filters} />
     </div>
   );
 }

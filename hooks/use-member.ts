@@ -55,3 +55,21 @@ export function useGetMember(id: string) {
     },
   });
 }
+
+export function useGetMembersByJoinDate(params: {
+  timeRange: string;
+  membershipType?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  return useQuery({
+    queryKey: ["members-joined", params],
+    queryFn: async () => {
+      const res = await axios.get("/api/members/joined", { params });
+      return res.data;
+    },
+  });
+}

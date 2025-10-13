@@ -47,3 +47,23 @@ export function useGetMembershipStats() {
     },
   });
 }
+
+export function useResetMembership() {
+  return useMutation({
+    mutationFn: async ({ 
+      id, 
+      action, 
+      notes 
+    }: { 
+      id: string; 
+      action: "cancel" | "suspend" | "restart"; 
+      notes?: string;
+    }) => {
+      const response = await axios.post(`/api/memberships/${id}/reset`, {
+        action,
+        notes,
+      });
+      return response.data;
+    },
+  });
+}

@@ -48,6 +48,8 @@ import { toast } from "sonner";
 import { useMembers } from "@/hooks/use-member";
 import { formatDate } from "@/utils/format-date";
 import { TableSkeleton } from "@/components/ui/loading";
+import { ResetMembershipDialog } from "@/components/membership/reset-membership-dialog";
+import { RefreshCw } from "lucide-react";
 
 export default function MembersPage() {
   const router = useRouter();
@@ -229,6 +231,15 @@ export default function MembersPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem>Add payment</DropdownMenuItem>
+                          <ResetMembershipDialog
+                            membershipId={member.membershipId._id}
+                            memberName={member.name}
+                          >
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Reset Membership
+                            </DropdownMenuItem>
+                          </ResetMembershipDialog>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"

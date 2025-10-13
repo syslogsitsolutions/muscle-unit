@@ -46,6 +46,16 @@ import QuickPaymentModal from "@/components/payment/quick-payment-modal"; // You
 import { formatDate } from "@/utils/format-date";
 import formatCurrency from "@/utils/format-currency";
 import { CardSkeleton } from "@/components/ui/loading";
+import { ResetMembershipDialog } from "@/components/membership/reset-membership-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, RefreshCw } from "lucide-react";
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
@@ -305,20 +315,42 @@ export default function FeesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {hasOutstandingBalance(membership) ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handlePayClick(membership)}
-                            className="gap-1"
-                          >
-                            <CreditCard className="h-3 w-3" />
-                            Pay
-                          </Button>
-                        ) : (
-                          <Badge variant="outline" className="text-green-600">
-                            Paid
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {hasOutstandingBalance(membership) ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handlePayClick(membership)}
+                              className="gap-1"
+                            >
+                              <CreditCard className="h-3 w-3" />
+                              Pay
+                            </Button>
+                          ) : (
+                            <Badge variant="outline" className="text-green-600">
+                              Paid
+                            </Badge>
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <ResetMembershipDialog
+                                membershipId={membership._id}
+                                memberName={membership.memberDetails.name}
+                              >
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Reset Membership
+                                </DropdownMenuItem>
+                              </ResetMembershipDialog>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
