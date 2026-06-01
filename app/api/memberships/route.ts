@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Membership from "@/lib/models/Membership";
+import "@/lib/models/MembershipType"; // ensure MembershipType is registered with Mongoose
 import mongoose from "mongoose";
 
 export async function GET(req: Request) {
