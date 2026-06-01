@@ -47,6 +47,7 @@ export async function GET(req: Request) {
         },
       },
       { $unwind: "$memberDetails" },
+      { $match: { "memberDetails.status": "active" } },
       {
         $lookup: {
           from: "membershiptypes",
