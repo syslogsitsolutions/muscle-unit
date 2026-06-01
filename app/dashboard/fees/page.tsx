@@ -9,6 +9,7 @@ import {
   Filter,
   Search,
   CreditCard,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, RefreshCw } from "lucide-react";
+import { useDeletePayment } from "@/hooks/use-payment";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const getStatusBadge = (status: string) => {
   const statusConfig = {
@@ -81,11 +86,14 @@ const getHowManyDaysDelayed = (endDate: string) => {
 };
 
 export default function FeesPage() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedMembership, setSelectedMembership] = useState<any>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [membershipToDelete, setMembershipToDelete] = useState<any>(null);
   const limit = 10;
 
   const {
@@ -101,6 +109,8 @@ export default function FeesPage() {
 
   const { data: membershipStats, isLoading: statsLoading } =
     useGetMembershipStats();
+
+  const deletePaymentMutation = useDeletePayment();
 
   const total = membershipsData?.total || 0;
   const totalPages = Math.ceil(total / limit);
@@ -120,6 +130,35 @@ export default function FeesPage() {
 
   const hasOutstandingBalance = (membership: any) => {
     return membership.amount > membership.amountPaid;
+  };
+
+  const handleDeleteFeeClick = (membership: any) => {
+    if (!membership.paymentId) {
+      toast.error("No payment record found for this membership");
+      return;
+    }
+    setMembershipToDelete(membership);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteFeeConfirm = async () => {
+    if (!membershipToDelete || !membershipToDelete.paymentId) return;
+
+    try {
+      await deletePaymentMutation.mutateAsync(membershipToDelete.paymentId);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["memberships"] });
+      queryClient.invalidateQueries({ queryKey: ["membership-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      
+      toast.success("Fee record deleted successfully");
+      setDeleteDialogOpen(false);
+      setMembershipToDelete(null);
+      refetch();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete fee record");
+    }
   };
 
   return (
@@ -348,6 +387,18 @@ export default function FeesPage() {
                                   Reset Membership
                                 </DropdownMenuItem>
                               </ResetMembershipDialog>
+                              {membership.paymentId && (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleDeleteFeeClick(membership);
+                                  }}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Fee Record
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -400,6 +451,22 @@ export default function FeesPage() {
           onPaymentSuccess={handlePaymentSuccess}
         />
       )}
+
+      {/* Delete Fee Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Fee Record"
+        description={
+          membershipToDelete
+            ? `Are you sure you want to delete the fee record for ${membershipToDelete.memberDetails?.name}? This will remove the payment record associated with this membership. This action cannot be undone.`
+            : "Are you sure you want to delete this fee record? This action cannot be undone."
+        }
+        actionLabel="Delete"
+        variant="destructive"
+        isLoading={deletePaymentMutation.isPending}
+        onConfirm={handleDeleteFeeConfirm}
+      />
     </div>
   );
 }

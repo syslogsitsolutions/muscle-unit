@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const MONGODB_URI =
   process.env.MONGODB_URI ||
-  "mongodb+srv://syslogsitsolutions:xYwF7WbgKmRAzhjc@cluster0.yky1f6e.mongodb.net/muscle-unit";
+  "mongodb://localhost:27017/muscle-unit";
 
 if (!MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable");

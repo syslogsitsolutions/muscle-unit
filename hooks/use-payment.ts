@@ -31,3 +31,12 @@ export function useCreatePayment() {
     },
   });
 }
+
+export function useDeletePayment() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await axios.delete(`/api/payments/${id}`);
+      return response.data;
+    },
+  });
+}

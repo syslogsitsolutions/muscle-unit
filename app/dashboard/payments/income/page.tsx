@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -12,6 +12,7 @@ import {
   Search,
   XCircle,
   Printer,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -42,14 +43,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useGetPayments } from "@/hooks/use-payment";
+import { useGetPayments, useDeletePayment } from "@/hooks/use-payment";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { PAYMENT_TYPES } from "@/constants/payment";
 import {
   printMembershipReceipt,
   type MembershipData,
   type PaymentData,
 } from "@/utils/print/print-payment-receipt";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 interface PopulatedMember {
   _id: string;
@@ -151,10 +154,13 @@ const formatTransactionType = (transactionType: string) => {
 
 export default function PaymentsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<any>(null);
   const limit = 10;
 
   const { data: paymentsData, isLoading: paymentsLoading } = useGetPayments({
@@ -162,6 +168,8 @@ export default function PaymentsPage() {
     limit,
     search: searchQuery,
   });
+
+  const deletePaymentMutation = useDeletePayment();
 
   const total = paymentsData?.total || 0;
   const totalPages = Math.ceil(total / limit);
@@ -215,6 +223,28 @@ export default function PaymentsPage() {
       toast.error(`Printing failed: ${error.message}`);
     } finally {
       setPrintingId(null);
+    }
+  };
+
+  const handleDeleteClick = (payment: any) => {
+    setPaymentToDelete(payment);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!paymentToDelete) return;
+
+    try {
+      await deletePaymentMutation.mutateAsync(paymentToDelete._id);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      
+      toast.success("Payment deleted successfully");
+      setDeleteDialogOpen(false);
+      setPaymentToDelete(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to delete payment");
     }
   };
 
@@ -309,18 +339,31 @@ export default function PaymentsPage() {
                     </TableCell>
                     <TableCell>{getStatusBadge(payment.status)}</TableCell>
                     <TableCell>
-                      {payment.paymentType === PAYMENT_TYPES.MEMBERSHIP && (
+                      <div className="flex items-center gap-2">
+                        {payment.paymentType === PAYMENT_TYPES.MEMBERSHIP && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePrint(payment)}
+                            disabled={
+                              paymentsLoading || printingId === payment._id
+                            }
+                            title="Print receipt"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handlePrint(payment)}
-                          disabled={
-                            paymentsLoading || printingId === payment._id
-                          }
+                          onClick={() => handleDeleteClick(payment)}
+                          disabled={deletePaymentMutation.isPending}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Delete payment"
                         >
-                          <Printer className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -356,6 +399,21 @@ export default function PaymentsPage() {
           </div>
         </CardFooter>
       </Card>
+
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Payment"
+        description={
+          paymentToDelete
+            ? `Are you sure you want to delete payment ${paymentToDelete.invoiceNumber}? This action cannot be undone.`
+            : "Are you sure you want to delete this payment? This action cannot be undone."
+        }
+        actionLabel="Delete"
+        variant="destructive"
+        isLoading={deletePaymentMutation.isPending}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
