@@ -48,14 +48,9 @@ export async function POST(
     }
 
     // Generate invoice number
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
     const count = await Payment.countDocuments();
-    const invoiceNumber = `INV-${year}${month}-${String(count + 1).padStart(
-      4,
-      "0"
-    )}`;
+    const timestamp = Date.now();
+    const invoiceNumber = `INV-${timestamp}-${count + 1}`;
 
     const payment = await Payment.create({
       amount: body.amount,
