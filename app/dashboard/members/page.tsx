@@ -183,7 +183,7 @@ export default function MembersPage() {
                       {member.memberId}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {member.membershipId.membershipType.name}
+                      {member?.membershipId?.membershipType?.name}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <Badge
@@ -198,7 +198,7 @@ export default function MembersPage() {
                       {formatDate(member.joiningDate)}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {formatDate(member.membershipId.endDate)}
+                      {formatDate(member?.membershipId?.endDate)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -232,7 +232,7 @@ export default function MembersPage() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem>Add payment</DropdownMenuItem>
                           <ResetMembershipDialog
-                            membershipId={member.membershipId._id}
+                            membershipId={member?.membershipId?._id || ""}
                             memberName={member.name}
                           >
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>

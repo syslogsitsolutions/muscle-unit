@@ -190,15 +190,15 @@ export default function EditMemberPage() {
           const memberData: MemberData = data;
 
           // Store original membership type for comparison
-          setOriginalMembershipType(memberData.membershipId.membershipType._id);
+          setOriginalMembershipType(memberData?.membershipId?.membershipType?._id || "");
 
           // Format data for form with proper Date objects
           const formattedData = {
-            memberId: memberData.memberId,
+            memberId: memberData?.memberId || "" ,
             name: memberData.name,
-            email: memberData.email,
-            phone: memberData.phone,
-            address: memberData.address,
+            email: memberData?.email || "",
+            phone: memberData?.phone || "",
+            address: memberData?.address || "",
             gender: memberData.gender,
             emergencyContact: {
               phone: memberData.emergencyContact.phone || "",
@@ -217,13 +217,13 @@ export default function EditMemberPage() {
               ? new Date(memberData.dateOfBirth).toISOString().split("T")[0]
               : "",
             // Convert to Date objects
-            membershipValidFrom: memberData.membershipId.startDate
-              ? new Date(memberData.membershipId.startDate)
+            membershipValidFrom: memberData?.membershipId?.startDate
+              ? new Date(memberData?.membershipId?.startDate || "")
               : undefined,
-            membershipValidTo: memberData.membershipId.endDate
-              ? new Date(memberData.membershipId.endDate)
+            membershipValidTo: memberData?.membershipId?.endDate
+              ? new Date(memberData?.membershipId?.endDate || "")
               : undefined,
-            membershipType: memberData.membershipId.membershipType._id,
+            membershipType: memberData?.membershipId?.membershipType?._id || "",
           };
 
           form.reset(formattedData);
