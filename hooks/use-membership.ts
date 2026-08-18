@@ -6,6 +6,8 @@ interface GetMembershipsQueryParams {
   limit: number;
   search: string;
   status: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }
 
 export function useGetMemberships({
@@ -13,12 +15,14 @@ export function useGetMemberships({
   limit,
   search,
   status,
+  sortBy = "delayedDays",
+  sortOrder = "asc",
 }: GetMembershipsQueryParams) {
   return useQuery({
-    queryKey: ["memberships", page, limit, search, status],
+    queryKey: ["memberships", page, limit, search, status, sortBy, sortOrder],
     queryFn: async () => {
       const res = await axios.get("/api/memberships", {
-        params: { page, limit, search, status },
+        params: { page, limit, search, status, sortBy, sortOrder },
       });
       return res.data;
     },

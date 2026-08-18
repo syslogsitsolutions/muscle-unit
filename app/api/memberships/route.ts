@@ -22,6 +22,8 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const search = searchParams.get("search")?.toLowerCase() || "";
     const status = searchParams.get("status");
+    const sortBy = searchParams.get("sortBy") || "delayedDays";
+    const sortOrder = searchParams.get("sortOrder") === "desc" ? -1 : 1;
 
     const matchStage: any = {};
 
@@ -32,11 +34,29 @@ export async function GET(req: Request) {
       ];
     }
 
-    if (status && status !== "all") {
+    if (status === "due_this_month") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+      matchStage.endDate = { $gte: startOfMonth, $lte: endOfMonth };
+      matchStage.status = { $in: ["expired", "pending"] };
+    } else if (status && status !== "all") {
       matchStage.status = status;
     }
 
     const skip = (page - 1) * limit;
+
+    const delayedDaysSort: Record<string, 1 | -1> =
+      sortBy === "delayedDays"
+        ? { overdueRank: 1, delayedDays: sortOrder }
+        : { endDate: 1 };
 
     const results = await Membership.aggregate([
       {
@@ -60,7 +80,26 @@ export async function GET(req: Request) {
       { $unwind: "$membershipTypeDetails" },
 
       { $match: matchStage },
-      { $sort: { endDate: 1 } },
+      {
+        $addFields: {
+          delayedDays: {
+            $floor: {
+              $divide: [
+                { $subtract: [now, "$endDate"] },
+                1000 * 60 * 60 * 24,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          overdueRank: {
+            $cond: [{ $gte: ["$delayedDays", 0] }, 0, 1],
+          },
+        },
+      },
+      { $sort: delayedDaysSort },
       {
         $facet: {
           metadata: [{ $count: "total" }],

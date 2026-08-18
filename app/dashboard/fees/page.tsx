@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -89,6 +92,8 @@ export default function FeesPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("delayedDays");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const [selectedMembership, setSelectedMembership] = useState<any>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -105,6 +110,8 @@ export default function FeesPage() {
     limit,
     search: searchQuery,
     status: statusFilter,
+    sortBy,
+    sortOrder,
   });
 
   const { data: membershipStats, isLoading: statsLoading } =
@@ -116,6 +123,12 @@ export default function FeesPage() {
   const totalPages = Math.ceil(total / limit);
 
   const memberships = membershipsData?.memberships || [];
+
+  const handleDelayedDaysSort = () => {
+    setSortBy("delayedDays");
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    setPage(1);
+  };
 
   const handlePayClick = (membership: any) => {
     console.log("membership", membership);
@@ -246,7 +259,7 @@ export default function FeesPage() {
         <CardHeader>
           <CardTitle>Fee Records</CardTitle>
           <CardDescription>
-            View and manage all fee records and payments
+            Sort by delayed days or filter due this month to find pending fees
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -261,18 +274,50 @@ export default function FeesPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[160px]">
+            <div className="flex flex-wrap gap-2">
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="due_this_month">Due this month</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={`${sortBy}-${sortOrder}`}
+                onValueChange={(value) => {
+                  const [nextSortBy, nextSortOrder] = value.split("-") as [
+                    string,
+                    "asc" | "desc",
+                  ];
+                  setSortBy(nextSortBy);
+                  setSortOrder(nextSortOrder);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[210px]">
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Sort by delayed days" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="delayedDays-asc">
+                    Least delayed first
+                  </SelectItem>
+                  <SelectItem value="delayedDays-desc">
+                    Most delayed first
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline">
@@ -293,24 +338,47 @@ export default function FeesPage() {
                   <TableHead>Paid Amount</TableHead>
                   <TableHead>Balance</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>
+                    <button
+                      type="button"
+                      onClick={handleDelayedDaysSort}
+                      className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                    >
+                      Delayed Days
+                      {sortBy === "delayedDays" ? (
+                        sortOrder === "asc" ? (
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                      )}
+                    </button>
+                  </TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : memberships.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       No memberships found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  memberships.map((membership: any) => (
+                  memberships.map((membership: any) => {
+                    const delayedDays = getHowManyDaysDelayed(
+                      membership.endDate
+                    );
+
+                    return (
                     <TableRow key={membership.id}>
                       <TableCell>
                         <div className="font-medium">
@@ -346,11 +414,14 @@ export default function FeesPage() {
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(membership.status)}
-                        {membership.status === "expired" && (
-                          <div className="text-xs text-rose-500 mt-1">
-                            {getHowManyDaysDelayed(membership.endDate)} days
-                            delayed
-                          </div>
+                      </TableCell>
+                      <TableCell>
+                        {delayedDays >= 0 ? (
+                          <span className="text-rose-500 font-medium">
+                            {delayedDays} {delayedDays === 1 ? "day" : "days"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -404,7 +475,8 @@ export default function FeesPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
